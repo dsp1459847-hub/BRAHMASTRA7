@@ -4,12 +4,12 @@ import numpy as np
 from datetime import timedelta
 from collections import Counter
 
-st.set_page_config(page_title="MAYA AI - Ikai & Dahai Engine", layout="wide")
+st.set_page_config(page_title="MAYA AI - TF Digit Engine", layout="wide")
 
-st.title("MAYA AI 🧮: Ikai & Dahai Separation Engine")
-st.markdown("Yeh system numbers ko **Dahai (Andar)** aur **Ikai (Bahar)** mein tod kar un par alag-alag patterns lagata hai, aur fir unhe jod kar Final 2-Digit Number banata hai.")
+st.title("MAYA AI 🧮: Timeframe-Wise Ikai & Dahai Engine")
+st.markdown("Yeh AI har timeframe (3D, 5D, 10D, 15D, 30D, War-wise) mein Dahai aur Ikai ko alag-alag test karta hai aur unki Voting karata hai.")
 
-# --- 1. Simple Selection Interface ---
+# --- 1. Direct Selection Interface (No Dashboard Clutter) ---
 st.sidebar.header("📁 Data Settings")
 uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=['csv', 'xlsx'])
 shift_names = ["DS", "FD", "GD", "GL", "DB", "SG", "ZA"]
@@ -32,8 +32,9 @@ if uploaded_file is not None:
         if len(filtered_df) == 0: st.stop()
 
         target_date_next = filtered_df['DATE'].iloc[-1] + timedelta(days=1)
+        curr_weekday = target_date_next.dayofweek
 
-        # --- 3. DIGIT SEPARATION LOGIC (Dahai & Ikai) ---
+        # --- 3. DIGIT SEPARATION & LOGIC ---
         def run_digit_elimination(digit_list, limit):
             digit_list = [int(x) for x in digit_list if pd.notna(x)]
             eliminated = set()
@@ -48,104 +49,99 @@ if uploaded_file is not None:
                     else: scores[num] += 1
             return eliminated, scores
 
-        def get_best_digits(past_data):
+        def get_top_digits(past_data):
             if len(past_data) < 2: return []
             e, s = run_digit_elimination(past_data, max_limit)
             safe = sorted([n for n in range(10) if n not in e], key=lambda x: s[x], reverse=True)
-            if not safe: return []
-            # Returning Top 3 Digits for the pattern
-            return safe[:3]
+            # Sirf sabse majboot 2 digits return karenge ek timeframe se
+            return safe[:2] if safe else []
 
-        # --- 4. ENGINE: GET DIGIT FREQUENCIES FOR TIMEFRAMES ---
-        def get_digit_frequencies(target_date):
-            past_df = filtered_df[filtered_df['DATE'] < target_date]
-            if len(past_df) < 30: return [], []
-            
+        # --- 4. CALCULATE ACROSS ALL TIMEFRAMES ---
+        with st.spinner("Sabhi timeframes mein Dahai aur Ikai check ho rahe hain..."):
+            past_df = filtered_df[filtered_df['DATE'] < target_date_next]
             main_list = past_df[target_shift_name].tolist()
             main_valid = [int(x) for x in main_list if pd.notna(x)]
             
-            # Todna (Separating Ikai and Dahai)
             dahai_list = [x // 10 for x in main_valid]
             ikai_list = [x % 10 for x in main_valid]
-            
-            # Timeframes for DAHAI
-            d_3d = get_best_digits(dahai_list[-3:])
-            d_5d = get_best_digits(dahai_list[-5:])
-            d_10d = get_best_digits(dahai_list[-10:])
-            d_15d = get_best_digits(dahai_list[-15:])
-            d_30d = get_best_digits(dahai_list[-30:])
-            
-            # War-Wise for DAHAI
-            curr_weekday = target_date.dayofweek
+
             war_df = past_df[past_df['DATE'].dt.dayofweek == curr_weekday]
             war_valid = [int(x) for x in war_df[target_shift_name].tolist() if pd.notna(x)]
-            d_war = get_best_digits([x // 10 for x in war_valid][-15:])
-            
-            all_dahai = d_3d + d_5d + d_10d + d_15d + d_30d + d_war
+            war_dahai = [x // 10 for x in war_valid]
+            war_ikai = [x % 10 for x in war_valid]
 
-            # Timeframes for IKAI
-            i_3d = get_best_digits(ikai_list[-3:])
-            i_5d = get_best_digits(ikai_list[-5:])
-            i_10d = get_best_digits(ikai_list[-10:])
-            i_15d = get_best_digits(ikai_list[-15:])
-            i_30d = get_best_digits(ikai_list[-30:])
-            
-            i_war = get_best_digits([x % 10 for x in war_valid][-15:])
-            
-            all_ikai = i_3d + i_5d + i_10d + i_15d + i_30d + i_war
-            
-            return all_dahai, all_ikai
+            # Results Dictionary
+            tf_results = {
+                "3-Day Trend": {"Dahai": get_top_digits(dahai_list[-3:]), "Ikai": get_top_digits(ikai_list[-3:])},
+                "5-Day Trend": {"Dahai": get_top_digits(dahai_list[-5:]), "Ikai": get_top_digits(ikai_list[-5:])},
+                "10-Day Trend": {"Dahai": get_top_digits(dahai_list[-10:]), "Ikai": get_top_digits(ikai_list[-10:])},
+                "15-Day Trend": {"Dahai": get_top_digits(dahai_list[-15:]), "Ikai": get_top_digits(ikai_list[-15:])},
+                "30-Day Trend": {"Dahai": get_top_digits(dahai_list[-30:]), "Ikai": get_top_digits(ikai_list[-30:])},
+                "War-Wise (Din)": {"Dahai": get_top_digits(war_dahai[-15:]), "Ikai": get_top_digits(war_ikai[-15:])}
+            }
 
-        # --- 5. LIVE CALCULATION FOR TODAY ---
-        with st.spinner("Dahai aur Ikai ko alag karke patterns lagaye ja rahe hain..."):
-            today_dahai, today_ikai = get_digit_frequencies(target_date_next)
-            
-            dahai_counts = Counter(today_dahai)
-            ikai_counts = Counter(today_ikai)
-            
-            # Top Dahai aur Top Ikai nikalna (Jo sabse zyada timeframes me common hain)
-            top_dahai = sorted(dahai_counts.items(), key=lambda x: x[1], reverse=True)[:4]
-            top_ikai = sorted(ikai_counts.items(), key=lambda x: x[1], reverse=True)[:4]
-
-        # --- 6. DISPLAY RESULTS ---
+        # --- 5. INDIVIDUAL TIMEFRAME DISPLAY ---
         st.markdown("---")
-        st.header(f"🎯 Pure Digits for {target_date_next.strftime('%d %B %Y')}")
+        st.subheader(f"📊 Timeframe-Wise Breakdown for {target_date_next.strftime('%d %B %Y')}")
         
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
+        c4, c5, c6 = st.columns(3)
+        cols = [c1, c2, c3, c4, c5, c6]
         
-        with c1:
-            st.warning("### 🅰️ Strong DAHAI (Andar)")
+        all_dahai_votes = []
+        all_ikai_votes = []
+
+        for idx, (tf_name, data) in enumerate(tf_results.items()):
+            d_str = ", ".join([str(x) for x in data["Dahai"]]) if data["Dahai"] else "N/A"
+            i_str = ", ".join([str(x) for x in data["Ikai"]]) if data["Ikai"] else "N/A"
+            
+            with cols[idx]:
+                st.info(f"**{tf_name}**\n\n🅰️ Andar: **{d_str}**\n\n🅱️ Bahar: **{i_str}**")
+            
+            all_dahai_votes.extend(data["Dahai"])
+            all_ikai_votes.extend(data["Ikai"])
+
+        # --- 6. VOTING & COMBINATION ---
+        dahai_counts = Counter(all_dahai_votes)
+        ikai_counts = Counter(all_ikai_votes)
+
+        top_dahai = sorted(dahai_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_ikai = sorted(ikai_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        st.markdown("---")
+        st.header("🏆 Final Master Voting & Numbers")
+        
+        col_A, col_B = st.columns(2)
+        with col_A:
+            st.warning("### 🅰️ Final DAHAI (Andar)")
             for digit, count in top_dahai:
-                st.write(f"**Digit {digit}** (Matched in {count} Patterns)")
-                
-        with c2:
-            st.success("### 🅱️ Strong IKAI (Bahar)")
+                st.write(f"**Digit {digit}** ({count}/6 Timeframes ne support kiya)")
+        
+        with col_B:
+            st.success("### 🅱️ Final IKAI (Bahar)")
             for digit, count in top_ikai:
-                st.write(f"**Digit {digit}** (Matched in {count} Patterns)")
+                st.write(f"**Digit {digit}** ({count}/6 Timeframes ne support kiya)")
 
-        # --- 7. THE MASTER COMBINATION (Final Numbers) ---
+        # Generate Final Numbers
         st.markdown("---")
-        st.subheader("🔗 Final Master Numbers (Dahai + Ikai Combinations)")
+        st.subheader("🔗 100% Calculated Target Numbers")
         
         final_numbers = []
         for d, d_count in top_dahai:
             for i, i_count in top_ikai:
-                # Combining Tens and Units (e.g., Dahai 4, Ikai 2 = 42)
                 num = (d * 10) + i
                 total_power = d_count + i_count
                 final_numbers.append((num, total_power))
                 
-        # Sort by total power (Highest overlap)
+        # Sort by total power
         final_numbers = sorted(final_numbers, key=lambda x: x[1], reverse=True)
         
-        # Displaying Final Numbers cleanly
-        st.info("Niche diye gaye numbers Dahai aur Ikai ke sabse powerful pattern intersections se banaye gaye hain:")
-        
+        # Displaying numbers in a clean line without dashboard clutter
         pure_nums = [f"{n:02d}" for n, power in final_numbers]
-        st.write(", ".join(pure_nums))
+        st.success(", ".join(pure_nums))
 
     except Exception as e:
         st.error(f"Error processing data: {e}")
 else:
-    st.info("👈 Data upload karein aur seedha Target Shift select karein.")
-          
+    st.info("👈 Data upload karein aur Date/Shift select karein.")
+        
