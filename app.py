@@ -7,15 +7,21 @@ from collections import Counter
 st.set_page_config(page_title="MAYA AI - TF Digit Engine", layout="wide")
 
 st.title("MAYA AI 🧮: Timeframe-Wise Ikai & Dahai Engine")
-st.markdown("Yeh AI har timeframe (3D, 5D, 10D, 15D, 30D, War-wise) mein Dahai aur Ikai ko alag-alag test karta hai aur unki Voting karata hai.")
+st.markdown("Yeh AI har timeframe mein Dahai aur Ikai ko alag-alag test karta hai. Ab aap khud select kar sakte hain ki aapko kitne digits chahiye!")
 
-# --- 1. Direct Selection Interface (No Dashboard Clutter) ---
+# --- 1. Direct Selection Interface ---
 st.sidebar.header("📁 Data Settings")
 uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=['csv', 'xlsx'])
 shift_names = ["DS", "FD", "GD", "GL", "DB", "SG", "ZA"]
 target_shift_name = st.sidebar.selectbox("🎯 Target Shift", shift_names)
 selected_end_date = st.sidebar.date_input("Calculation Date")
 max_limit = st.sidebar.slider("Max Repeat Limit (Digits)", 2, 5, 4)
+
+# NAYA UPDATE: Andar aur Bahar ke digit select karne ke buttons
+st.sidebar.markdown("---")
+st.sidebar.header("🎛️ Digits Selection (Andar / Bahar)")
+dahai_count = st.sidebar.radio("🅰️ Andar (Dahai) ke kitne digit chahiye?", [2, 3, 4, 5, 6], index=1, horizontal=True)
+ikai_count = st.sidebar.radio("🅱️ Bahar (Ikai) ke kitne digit chahiye?", [2, 3, 4, 5, 6], index=1, horizontal=True)
 
 if uploaded_file is not None:
     try:
@@ -49,12 +55,12 @@ if uploaded_file is not None:
                     else: scores[num] += 1
             return eliminated, scores
 
-        def get_top_digits(past_data):
+        def get_top_digits(past_data, count):
             if len(past_data) < 2: return []
             e, s = run_digit_elimination(past_data, max_limit)
             safe = sorted([n for n in range(10) if n not in e], key=lambda x: s[x], reverse=True)
-            # Sirf sabse majboot 2 digits return karenge ek timeframe se
-            return safe[:2] if safe else []
+            # User ke select kiye gaye ginti (count) ke hisaab se digit bhejna
+            return safe[:count] if safe else []
 
         # --- 4. CALCULATE ACROSS ALL TIMEFRAMES ---
         with st.spinner("Sabhi timeframes mein Dahai aur Ikai check ho rahe hain..."):
@@ -72,17 +78,17 @@ if uploaded_file is not None:
 
             # Results Dictionary
             tf_results = {
-                "3-Day Trend": {"Dahai": get_top_digits(dahai_list[-3:]), "Ikai": get_top_digits(ikai_list[-3:])},
-                "5-Day Trend": {"Dahai": get_top_digits(dahai_list[-5:]), "Ikai": get_top_digits(ikai_list[-5:])},
-                "10-Day Trend": {"Dahai": get_top_digits(dahai_list[-10:]), "Ikai": get_top_digits(ikai_list[-10:])},
-                "15-Day Trend": {"Dahai": get_top_digits(dahai_list[-15:]), "Ikai": get_top_digits(ikai_list[-15:])},
-                "30-Day Trend": {"Dahai": get_top_digits(dahai_list[-30:]), "Ikai": get_top_digits(ikai_list[-30:])},
-                "War-Wise (Din)": {"Dahai": get_top_digits(war_dahai[-15:]), "Ikai": get_top_digits(war_ikai[-15:])}
+                "3-Day Trend": {"Dahai": get_top_digits(dahai_list[-3:], dahai_count), "Ikai": get_top_digits(ikai_list[-3:], ikai_count)},
+                "5-Day Trend": {"Dahai": get_top_digits(dahai_list[-5:], dahai_count), "Ikai": get_top_digits(ikai_list[-5:], ikai_count)},
+                "10-Day Trend": {"Dahai": get_top_digits(dahai_list[-10:], dahai_count), "Ikai": get_top_digits(ikai_list[-10:], ikai_count)},
+                "15-Day Trend": {"Dahai": get_top_digits(dahai_list[-15:], dahai_count), "Ikai": get_top_digits(ikai_list[-15:], ikai_count)},
+                "30-Day Trend": {"Dahai": get_top_digits(dahai_list[-30:], dahai_count), "Ikai": get_top_digits(ikai_list[-30:], ikai_count)},
+                "War-Wise (Din)": {"Dahai": get_top_digits(war_dahai[-15:], dahai_count), "Ikai": get_top_digits(war_ikai[-15:], ikai_count)}
             }
 
         # --- 5. INDIVIDUAL TIMEFRAME DISPLAY ---
         st.markdown("---")
-        st.subheader(f"📊 Timeframe-Wise Breakdown for {target_date_next.strftime('%d %B %Y')}")
+        st.subheader(f"📊 Timeframe Breakdown for {target_date_next.strftime('%d %B %Y')}")
         
         c1, c2, c3 = st.columns(3)
         c4, c5, c6 = st.columns(3)
@@ -105,20 +111,21 @@ if uploaded_file is not None:
         dahai_counts = Counter(all_dahai_votes)
         ikai_counts = Counter(all_ikai_votes)
 
-        top_dahai = sorted(dahai_counts.items(), key=lambda x: x[1], reverse=True)[:3]
-        top_ikai = sorted(ikai_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        # Sirf utne hi top digits nikalna jitna user ne manga hai
+        top_dahai = sorted(dahai_counts.items(), key=lambda x: x[1], reverse=True)[:dahai_count]
+        top_ikai = sorted(ikai_counts.items(), key=lambda x: x[1], reverse=True)[:ikai_count]
 
         st.markdown("---")
         st.header("🏆 Final Master Voting & Numbers")
         
         col_A, col_B = st.columns(2)
         with col_A:
-            st.warning("### 🅰️ Final DAHAI (Andar)")
+            st.warning(f"### 🅰️ Final DAHAI (Top {dahai_count})")
             for digit, count in top_dahai:
                 st.write(f"**Digit {digit}** ({count}/6 Timeframes ne support kiya)")
         
         with col_B:
-            st.success("### 🅱️ Final IKAI (Bahar)")
+            st.success(f"### 🅱️ Final IKAI (Top {ikai_count})")
             for digit, count in top_ikai:
                 st.write(f"**Digit {digit}** ({count}/6 Timeframes ne support kiya)")
 
@@ -136,12 +143,14 @@ if uploaded_file is not None:
         # Sort by total power
         final_numbers = sorted(final_numbers, key=lambda x: x[1], reverse=True)
         
-        # Displaying numbers in a clean line without dashboard clutter
+        # Displaying numbers in a clean line
         pure_nums = [f"{n:02d}" for n, power in final_numbers]
         st.success(", ".join(pure_nums))
+        
+        st.write(f"**Total Numbers Generated:** {len(pure_nums)}")
 
     except Exception as e:
         st.error(f"Error processing data: {e}")
 else:
     st.info("👈 Data upload karein aur Date/Shift select karein.")
-        
+            
